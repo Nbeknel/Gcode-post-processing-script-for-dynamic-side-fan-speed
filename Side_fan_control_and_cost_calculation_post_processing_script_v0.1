@@ -255,21 +255,21 @@ for variable_name, variable in variables.items():
 
 for notes in ["printer_notes", "notes", "filament_notes"]:
     for feature_type, feature in feature_types.items():
-        match = re.search(f"""pps_{feature[slicer].replace(" ", "_").lower()}_cost_multiplier=(.+?)$""", variables[notes][value])
+        match = re.search(fr"""pps_{feature[slicer].replace(" ", "_").lower()}_cost_multiplier=(\d+\.?\d*|\.\d+)""", variables[notes][value])
         if match:
             feature_types[feature_type]["Cost_multiplier"] = float(match.group(1))
 
     for variable_name, variable in variables.items():
         if not "notes" in variable_name:
-            match = re.search(f"""pps_{variable_name.replace(" ", "_").lower()}=(.+?)$""", variables[notes][value])
+            match = re.search(fr"""pps_{variable_name.replace(" ", "_").lower()}=(\d+\.?\d*|\.\d+)""", variables[notes][value])
             if match:
                 variables[variable_name]["value"] = variable[dtype](match.group(1))
     
-    match = re.search(f"pps_fan_max_positive_step=(.+?)$", variables[notes][value])
+    match = re.search(fr"pps_fan_max_positive_step=(\d+\.?\d*|\.\d+)$", variables[notes][value])
     if match:
         fan_max_positive_step = float(match.group(1))
     
-    match = re.search(f"pps_fan_max_negative_step=(.+?)$", variables[notes][value])
+    match = re.search(fr"pps_fan_max_negative_step=(\d+\.?\d*|\.\d+)$", variables[notes][value])
     if match:
         fan_max_negative_step = float(match.group(1))
 
@@ -406,6 +406,7 @@ for line in lines:
 
     match = re.search(r"^;LAYER_CHANGE$", line)
     if match and layer.has_not_only_supports():
+        layer.time *= 0.01 * variables["time_estimeation_compensation"][value]
         layer.calculate_fan_speed()
         layers.append(layer)
         total_time += layer.time
