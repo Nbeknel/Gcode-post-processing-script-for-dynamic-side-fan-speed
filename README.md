@@ -1,4 +1,4 @@
-# Slic3r-Post-processing-script
+# Gcode-post-processing-script-for-dynamic-side-fan-speed
 A gcode post-processing script that allows for dynamic speed control of the side fan.
 
 ### How to use
