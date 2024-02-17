@@ -28,7 +28,6 @@ no spaces, each new variable on a new line. All variables are non-negative float
 Instead of using the in slicer variable full_fan_speed_layer this script implements two new variables `fan_max_positive_step` and `fan_max_negative_step`. `fan_max_positive_step` defines the maximum increase in percentages for the fan speed between layers, `fan_max_negative_step` defines the maximum decrease in percentages. E.g. if `fan_max_positive_step` is set to 25, `fan_max_negative_step` is set to 10, fan speed for the layer with number n is 49, then the fan speed for the layer with number n+1 will lie between 39 and 74.
 
 ### Current limitations
-- works in SuperSlicer, PrusaSlicer and OrcaSlicer
 - single extruder setup
 - absolute E distances
 - non-volumetric E
