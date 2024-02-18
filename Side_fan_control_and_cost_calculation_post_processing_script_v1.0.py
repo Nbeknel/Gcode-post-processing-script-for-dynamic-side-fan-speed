@@ -1,0 +1,724 @@
+#!/usr/bin/python
+
+import re
+import sys
+import math
+import os
+
+filename = sys.argv[-1]
+
+slicer = sys.argv[-2]
+
+# Reading file and storing in memory
+with open(filename, "r") as file:
+    lines = file.readlines()
+
+print(f"Original file: {len(lines)} lines\n")
+
+# Preprocessing
+#START
+
+feature_types = {
+    "Unknown": {
+        "OS": "Undefined",
+        "PS": "Unknown",
+        "SS": "Unknown",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Internal perimeter": {
+        "OS": "Inner wall",
+        "PS": "Perimeter",
+        "SS": "Internal perimeter",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "External perimeter": {
+        "OS": "Outer wall",
+        "PS": "External perimeter",
+        "SS": "External perimeter",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Overhang perimeter": {
+        "OS": "Overhang wall",
+        "PS": "Overhang perimeter",
+        "SS": "Overhang perimeter",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Internal infill": {
+        "OS": "Sparse infill",
+        "PS": "Internal infill",
+        "SS": "Internal infill",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Solid infill": {
+        "OS": "Internal solid infill",
+        "PS": "Solid infill",
+        "SS": "Solid infill",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Top solid infill": {
+        "OS": "Top surface",
+        "PS": "Top solid infill",
+        "SS": "Top solid infill",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Ironing": {
+        "OS": "Ironing",
+        "PS": "Ironing",
+        "SS": "Ironing",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Bridge infill": {
+        "OS": "Bridge",
+        "PS": "Bridge infill",
+        "SS": "Bridge infill",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Internal bridge infill": {
+        "OS": "Internal Bridge", # Why is 'Bridge' capitalised?
+        "PS": "Bridge infill",
+        "SS": "Internal bridge infill",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Thin wall": {
+        "OS": "Outer wall",
+        "PS": "External perimeter",
+        "SS": "Thin wall",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Gap fill": {
+        "OS": "Gap infill",
+        "PS": "Gap fill",
+        "SS": "Gap fill",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Skirt": {
+        "OS": "Skirt",
+        "PS": "Skirt/Brim",
+        "SS": "Skirt",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Support material": {
+        "OS": "Support",
+        "PS": "Support material",
+        "SS": "Support material",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Support material interface": {
+        "OS": "Support interface",
+        "PS": "Support material interface",
+        "SS": "Support material interface",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Custom": {
+        "OS": "Custom",
+        "PS": "Custom",
+        "SS": "Custom",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Bottom surface": {
+        "OS": "Bottom surface",
+        "PS": "Solid infill",
+        "SS": "Solid infill",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        },
+    "Brim": {
+        "OS": "Brim",
+        "PS": "Skirt/Brim",
+        "SS": "Skirt",
+        "Length": 0,
+        "Cost_multiplier" : 1,
+        "Cost": 0
+        }
+    }
+
+value = 0
+
+dtype = 1
+
+slicer_variables = {
+    "fill_density": {
+        "OS": "SLIC3R_SPARSE_INFILL_DENSITY",
+        "PS": "SLIC3R_FILL_DENSITY",
+        "SS": "SLIC3R_FILL_DENSITY",
+        value: 0,
+        dtype: float
+        },
+    "filament_diameter": {
+        "OS": "SLIC3R_FILAMENT_DIAMETER",
+        "PS": "SLIC3R_FILAMENT_DIAMETER",
+        "SS": "SLIC3R_FILAMENT_DIAMETER",
+        value: 1.75,
+        dtype: float
+        },
+    "filament_cost": {
+        "OS": "SLIC3R_FILAMENT_COST",
+        "PS": "SLIC3R_FILAMENT_COST",
+        "SS": "SLIC3R_FILAMENT_COST",
+        value: 0,
+        dtype: float
+        },
+    "filament_density": {
+        "OS": "SLIC3R_FILAMENT_DENSITY",
+        "PS": "SLIC3R_FILAMENT_DENSITY",
+        "SS": "SLIC3R_FILAMENT_DENSITY",
+        value: 1,
+        dtype: float
+        },
+    "printer_notes": {
+        "OS": "SLIC3R_PRINTER_NOTES",
+        "PS": "SLIC3R_PRINTER_NOTES",
+        "SS": "SLIC3R_PRINTER_NOTES",
+        value: "",
+        dtype: str
+        },
+    "notes": {
+        "OS": "SLIC3R_NOTES",
+        "PS": "SLIC3R_NOTES",
+        "SS": "SLIC3R_NOTES",
+        value: "",
+        dtype: str
+        },
+    "filament_notes": {
+        "OS": "SLIC3R_FILAMENT_NOTES",
+        "PS": "SLIC3R_FILAMENT_NOTES",
+        "SS": "SLIC3R_FILAMENT_NOTES",
+        value: "",
+        dtype: str
+        },
+    "min_print_speed": {
+        "OS": "SLIC3R_SLOW_DOWN_MIN_SPEED",
+        "PS": "SLIC3R_MIN_PRINT_SPEED",
+        "SS": "SLIC3R_MIN_PRINT_SPEED",
+        value: 10,
+        dtype: float
+        },
+    "machine_max_acceleration_extruding": {
+        "OS": "SLIC3R_MACHINE_MAX_ACCELERATION_EXTRUDING",
+        "PS": "SLIC3R_MACHINE_MAX_ACCELERATION_EXTRUDING",
+        "SS": "SLIC3R_MACHINE_MAX_ACCELERATION_EXTRUDING",
+        value: 1500,
+        dtype: float
+        },
+    "layer_height": {
+        "OS": "SLIC3R_LAYER_HEIGHT",
+        "PS": "SLIC3R_LAYER_HEIGHT",
+        "SS": "SLIC3R_LAYER_HEIGHT",
+        value: 0.2,
+        dtype: float
+        },
+    "first_layer_height": {
+        "OS": "SLIC3R_INITIAL_LAYER_PRINT_HEIGHT",
+        "PS": "SLIC3R_FIRST_LAYER_HEIGHT",
+        "SS": "SLIC3R_FIRST_LAYER_HEIGHT",
+        value: 0.2,
+        dtype: float
+        },
+    "machine_max_acceleration_retracting": {
+        "OS": "SLIC3R_MACHINE_MAX_ACCELERATION_RETRACTING",
+        "PS": "SLIC3R_MACHINE_MAX_ACCELERATION_RETRACTING",
+        "SS": "SLIC3R_MACHINE_MAX_ACCELERATION_RETRACTING",
+        value: 1500,
+        dtype: float
+        },
+    "use_relative_e_distances": {
+        "OS": "SLIC3R_USE_RELATIVE_E_DISTANCES",
+        "PS": "SLIC3R_USE_RELATIVE_E_DISTANCES",
+        "SS": "SLIC3R_USE_RELATIVE_E_DISTANCES",
+        value: 0,
+        dtype: int
+        },
+    "use_volumetric_e": {
+        "OS": "",
+        "PS": "SLIC3R_USE_VOLUMETRIC_E",
+        "SS": "SLIC3R_USE_VOLUMETRIC_E",
+        value: 0,
+        dtype: int
+        }
+    }
+
+variables = {
+    "time_estimation_compensation": {
+        "OS": "",
+        "PS": "",
+        "SS": "SLIC3R_TIME_ESTIMATION_COMPENSATION",
+        value: 100,
+        dtype: float
+        },
+    "time_start_gcode": {
+        "OS": "",
+        "PS": "",
+        "SS": "SLIC3R_TIME_START_GCODE",
+        value: 0,
+        dtype: float
+        },
+    "time_cost": {
+        "OS": "SLIC3R_TIME_COST",
+        "PS": "",
+        "SS": "SLIC3R_TIME_COST",
+        value: 0,
+        dtype: float
+        },
+    "fan_printer_min_speed": {
+        "OS": "SLIC3R_FAN_MIN_SPEED",
+        "PS": "SLIC3R_MIN_FAN_SPEED",
+        "SS": "SLIC3R_FAN_PRINTER_MIN_SPEED",
+        value: 0,
+        dtype: float
+        },
+    "default_fan_speed": {
+        "OS": "",
+        "PS": "",
+        "SS": "SLIC3R_DEFAULT_FAN_SPEED",
+        value: -1,
+        dtype: float
+        },
+    "disable_fan_first_layers": {
+        "OS": "SLIC3R_CLOSE_FAN_THE_FIRST_X_LAYERS",
+        "PS": "SLIC3R_DISABLE_FAN_FIRST_LAYERS",
+        "SS": "SLIC3R_DISABLE_FAN_FIRST_LAYERS",
+        value: 1,
+        dtype: int
+        },
+    "fan_below_layer_time": {
+        "OS": "SLIC3R_FAN_COOLING_LAYER_TIME",
+        "PS": "SLIC3R_FAN_BELOW_LAYER_TIME",
+        "SS": "SLIC3R_FAN_BELOW_LAYER_TIME",
+        value: 60,
+        dtype: float
+        },
+    "max_fan_speed": {
+        "OS": "SLIC3R_FAN_MAX_SPEED",
+        "PS": "SLIC3R_MAX_FAN_SPEED",
+        "SS": "SLIC3R_MAX_FAN_SPEED",
+        value: 0,
+        dtype: float
+        },
+    "slowdown_below_layer_time": {
+        "OS": "SLIC3R_SLOW_DOWN_LAYER_TIME",
+        "PS": "SLIC3R_SLOWDOWN_BELOW_LAYER_TIME",
+        "SS": "SLIC3R_SLOWDOWN_BELOW_LAYER_TIME",
+        value: 5,
+        dtype: float
+        }
+    }
+
+fan_max_positive_step = 100
+
+fan_max_negative_step = 100
+
+theta = 1 / 3
+
+disable_fan_initial_height = 0
+
+for variable_name, variable in variables.items():
+    if variable[slicer] != "":
+        variables[variable_name][value] = os.environ[variable[slicer]]
+    if isinstance(variable[value], str) and '%' in variable[value]:
+        variables[variable_name][value] = variable[value][:-1:]
+    if not isinstance(variable[value], variable[dtype]):
+        variables[variable_name][value] = variable[dtype](variable[value])
+        
+for variable_name, variable in slicer_variables.items():
+    if variable[slicer] != "":
+        slicer_variables[variable_name][value] = os.environ[variable[slicer]]
+    if '%' in variable[value]:
+        slicer_variables[variable_name][value] = variable[value][:-1:]
+        if variable_name == "first_layer_height" and slicer == "SS":
+            slicer_variables[variable_name][value] = 0.01 * float(slicer_variables[variable_name][value]) * float(os.environ["nozzle_diameter"])
+    if ',' in variable[value]:
+        slicer_variables[variable_name][value] = variable[value].split(',')[0]
+    if not isinstance(variable[value], variable[dtype]):
+        slicer_variables[variable_name][value] = variable[dtype](variable[value])
+
+for notes in ["printer_notes", "notes", "filament_notes"]:
+    for feature_type, feature in feature_types.items():
+        match = re.search(fr"""pps_{feature[slicer].replace(" ", "_").lower()}_cost_multiplier=(\d+\.?\d*|\.\d+);""", slicer_variables[notes][value])
+        if match:
+            feature_types[feature_type]["Cost_multiplier"] = float(match.group(1))
+
+    for variable_name, variable in variables.items():
+        match = re.search(fr"""pps_{variable_name}=(\d+\.?\d*|\.\d+);""", slicer_variables[notes][value])
+        if match:
+            variables[variable_name][value] = float(match.group(1))
+    
+    match = re.search(fr"pps_fan_max_positive_step=(\d+\.?\d*|\.\d+);", slicer_variables[notes][value])
+    if match:
+        fan_max_positive_step = float(match.group(1))
+    
+    match = re.search(fr"pps_fan_max_negative_step=(\d+\.?\d*|\.\d+);", slicer_variables[notes][value])
+    if match:
+        fan_max_negative_step = float(match.group(1))
+
+    match = re.search(fr"pps_theta=(\d+\.?\d*|\.\d+);", slicer_variables[notes][value])
+    if match:
+        theta = float(match.group(1))
+
+    match = re.search(fr"pps_disable_fan_initial_height=(\d+\.?\d*|\.\d+);", slicer_variables[notes][value])
+    if match:
+        disable_fan_initial_height = float(match.group(1))
+
+feature_types["Internal infill"]["Cost_multiplier"] = max(feature_types["Internal infill"]["Cost_multiplier"],\
+                                                         0.01 * slicer_variables["fill_density"][value] * feature_types["Solid infill"]["Cost_multiplier"])
+
+if variables["default_fan_speed"][value] < 0:
+    variables["default_fan_speed"][value] = 0
+    if slicer == "OS" and bool(os.environ["SLIC3R_REDUCE_FAN_STOP_START_FREQ"]):
+        variables["default_fan_speed"][value] = variables["fan_printer_min_speed"][value]
+    if slicer == "PS" and bool(os.environ["SLIC3R_FAN_ALWAYS_ON"]):
+        variables["default_fan_speed"][value] = variables["fan_printer_min_speed"][value]
+
+if variables["max_fan_speed"][value] < variables["default_fan_speed"][value]:
+    variables["max_fan_speed"][value], variables["default_fan_speed"][value] = variables["default_fan_speed"][value], variables["max_fan_speed"][value]
+
+variables["disable_fan_first_layers"][value] = max(1, variables["disable_fan_first_layers"][value])
+
+disable_fan_initial_height = max(disable_fan_initial_height, (variables["disable_fan_first_layers"][value] - 1) * slicer_variables["layer_height"][value] + slicer_variables["first_layer_height"][value])
+
+pps_config = []
+
+for feature_type, feature in feature_types.items():
+    pps_config.append(f"""; pps_{feature[slicer].replace(" ", "_").lower()}_cost_multiplier = {feature["Cost_multiplier"]}\n""")
+
+for variable_name, variable in variables.items():
+    pps_config.append(f"""; pps_{variable_name} = {variable[value]}\n""")
+
+pps_config.extend([f"; pps_fan_max_positive_step = {fan_max_positive_step}\n", f"; pps_fan_max_negative_step = {fan_max_negative_step}\n",\
+   f"; pps_theta = {theta}\n", f"; pps_disable_fan_initial_height = {disable_fan_initial_height}\n"])
+
+pps_config.sort(key=str.lower)
+
+time_50 = 0.5 * (variables["fan_below_layer_time"][value] + variables["slowdown_below_layer_time"][value])
+
+time_amplitude = 0.5 * (variables["fan_below_layer_time"][value] - variables["slowdown_below_layer_time"][value])
+
+a = 2.25 / math.sqrt(14)
+
+extrusion_multiplier = (0.25 * math.pi * (slicer_variables["filament_diameter"][value] ** 2)) if bool(slicer_variables["use_volumetric_e"][value]) else 1
+
+def get_key(feature):
+    for key, val in feature_types.items():
+        if val[slicer] == feature:
+            return key
+    return "Unknown"
+
+def get_time(speed, accel, x_delta, y_delta, z_delta, retraction):
+    speed /= 60
+    distance = math.sqrt(x_delta ** 2 + y_delta ** 2 + z_delta ** 2)
+    if distance < 0.000_001:
+        distance = abs(retraction) / extrusion_multiplier
+        accel = slicer_variables["machine_max_acceleration_retracting"][value]
+    distance_to_reach_target_velocity = speed ** 2 / accel
+    if distance > distance_to_reach_target_velocity:
+        return distance / speed + theta * (-1 * distance_to_reach_target_velocity / speed + 2 * speed / accel)
+    return (1 - theta) * distance / speed + theta * 2 * math.sqrt(distance / accel)
+
+def delta_fan(layer_time_prev, layer_time_curr, layer_time_next):
+    delta = 0
+    if layer_time_curr - layer_time_prev < -1 * fan_max_negative_step:
+        delta -= layer_time_curr - layer_time_prev + fan_max_negative_step
+    elif layer_time_curr - layer_time_prev > fan_max_positive_step:
+        delta -= layer_time_curr - layer_time_prev - fan_max_positive_step
+
+    if layer_time_curr - layer_time_next < -1 * fan_max_positive_step:
+        delta -= layer_time_curr - layer_time_next + fan_max_positive_step
+    elif layer_time_curr - layer_time_next > fan_max_negative_step:
+        delta -= layer_time_curr - layer_time_next - fan_max_negative_step
+    return delta
+
+class Layer:
+    def __init__(self, e_prev=0):
+        self.layer = []
+        self.time = 0
+        self.height = 0
+        self.features = set([])
+        self.fan_speed = 0
+        self.delta = 0
+        self.delta_coefficient = 0
+        self.e_prev = e_prev
+        self.e_curr = e_prev
+        self.e_retraction = 0
+        self.e_total_retraction = 0
+
+    def append_line(self, line: str):
+        self.layer.append(line)
+        
+    def extend_lines(self, lines: iter):
+        self.layer.extend(lines)
+
+    def add_time(self, time: float):
+        self.time += time
+
+    def set_height(self, height: float):
+        self.height = max(self.height, height)
+
+    def add_feature(self, feature: str):
+        self.features.add(feature)
+
+    def has_not_only_supports(self) -> bool:
+        self.features.difference_update(["Support material interface", "Support material"])
+        return len(self.features) > 0
+
+    def calculate_delta_coefficient(self):
+        t = (self.time - time_50) / time_amplitude
+        self.delta_coefficient = max(0.1, a / math.sqrt(25/56 + t ** 2))
+
+    def calculate_fan_speed(self):
+        if self.time >= variables["fan_below_layer_time"][value]:
+            self.fan_speed = variables["default_fan_speed"][value]
+        elif self.time < variables["slowdown_below_layer_time"][value]:
+            self.fan_speed = variables["max_fan_speed"][value]
+        else:
+            self.fan_speed = variables["max_fan_speed"][value] -\
+            (self.time - variables["slowdown_below_layer_time"][value]) / (variables["fan_below_layer_time"][value] - variables["slowdown_below_layer_time"][value]) *\
+            (variables["max_fan_speed"][value] - variables["default_fan_speed"][value])
+        self.calculate_delta_coefficient()
+
+    def set_delta(self, delta: float):
+        self.delta = delta
+
+    def update_fan_speed(self):
+        self.fan_speed += self.delta * self.delta_coefficient
+
+    def update_e(self, e_value: float):
+        if bool(slicer_variables["use_relative_e_distances"][value]):
+            if e_value < 0:
+                self.e_retraction = e_value
+                self.e_total_retraction += e_value
+            else:
+                self.e_total_retraction += e_value
+                if self.e_total_retraction > 0:
+                    self.e_curr += self.e_total_retraction
+                    self.e_total_retraction = 0
+        else:
+            if e_value < self.e_curr:
+                self.e_retraction = e_value - self.e_curr - self.e_retraction
+            else:
+                self.e_curr = e_value
+
+    def reset_e(self, e_value: float):
+        self.e_prev = e_value
+        self.e_curr = e_value
+
+
+#END
+
+# Add extruder_partfan speed updates in gcode
+#START
+layers = []
+layer = Layer()
+
+speed = slicer_variables["min_print_speed"][value] * 60
+accel = slicer_variables["machine_max_acceleration_extruding"][value]
+
+y_prev = 0
+z_prev = 0
+x_prev = 0
+
+x_curr = 0
+y_curr = 0
+z_curr = 0
+
+type_current = "Unknown"
+total_time = variables["time_start_gcode"][value]
+
+for line in lines:
+    x_prev = x_curr
+    y_prev = y_curr
+    z_prev = z_curr
+    e = 0
+
+    match = re.search(r"^;LAYER_CHANGE$", line)
+    if match and layer.has_not_only_supports():
+        feature_types[type_current]["Length"] += layer.e_curr - layer.e_prev
+        layer.time *= 0.01 * variables["time_estimation_compensation"][value]
+        layer.calculate_fan_speed()
+        layers.append(layer)
+        total_time += layer.time
+        layer = Layer(layer.e_curr)
+
+    match = re.search(r"^;Z:(\d+\.?\d*|\.\d+)$", line)
+    if match:
+        layer.set_height(float(match.group(1)))
+
+    match = re.search(r"^;TYPE:(.+)$", line)
+    if match:
+        feature_types[type_current]["Length"] += layer.e_curr - layer.e_prev
+        layer.e_prev = layer.e_curr
+        type_current = get_key(match.group(1))
+        layer.add_feature(type_current)
+    
+    match = re.search(r"M204 S(\d+\.?\d*|\.\d+)", line)
+    if match:
+        accel = float(match.group(1))
+
+    match = re.search(r"SET_VELOCITY_LIMIT ACCEL=(\d+\.?\d*|\.\d+)", line)
+    if match:
+        accel = float(match.group(1))
+
+    match = re.search(r"^G1 .*?F(\d+\.?\d*|\.\d+)", line)
+    if match:
+        speed = float(match.group(1))
+
+    match = re.search(r"^G1 .*?X(-?(\d+\.?\d*|\.\d+))", line)
+    if match:
+        x_curr = float(match.group(1))
+
+    match = re.search(r"^G1 .*?Y(-?(\d+\.?\d*|\.\d+))", line)
+    if match:
+        y_curr = float(match.group(1))
+
+    match = re.search(r"^G1 .*?Z(-?(\d+\.?\d*|\.\d+))", line)
+    if match:
+        z_curr = float(match.group(1))
+
+    match = re.search(r"^G1 .*?E(-?(\d+\.?\d*|\.\d+))", line)
+    if match:
+        layer.update_e(float(match.group(1)))
+        e = 1
+
+    match = re.search(r"^G92 E(-?(\d+\.?\d*|\.\d+))", line)
+    if match:
+        feature_types[type_current]["Length"] += layer.e_curr - layer.e_prev
+        layer.reset_e(float(match.group(1)))
+
+    x_delta = x_curr - x_prev
+    y_delta = y_curr - y_prev
+    z_delta = z_curr - z_prev
+
+    if x_delta ** 2 + y_delta ** 2 + z_delta ** 2 + e> 0:
+        layer.add_time(get_time(speed, accel, x_delta, y_delta, z_delta, layer.e_retraction))
+
+    layer.append_line(line)
+
+feature_types[type_current]["Length"] += layer.e_curr - layer.e_prev
+layer.time *= 0.01 * variables["time_estimation_compensation"][value]
+layer.calculate_fan_speed()
+layers.append(layer)
+total_time += layer.time
+
+lines = []
+
+while True:
+    delta_sum = 0
+    for i in range(1, len(layers) - 1):
+        layers[i].set_delta(delta_fan(layers[i - 1].fan_speed, layers[i].fan_speed, layers[i + 1].fan_speed))
+        delta_sum += abs(layers[i].delta)
+    for i in range(1, len(layers) - 1):
+        layers[i].update_fan_speed()
+    if delta_sum < 0.05 * (1 + len(layers)):
+        break
+
+index = 0
+for i in range(len(layers)):
+    layers[i].fan_speed = 0
+    if layers[i].height > disable_fan_initial_height:
+        index = i - 1
+        break
+
+while True:
+    delta_sum = 0
+    for i in range(index, len(layers) - 1):
+        layers[i].set_delta(delta_fan(layers[i - 1].fan_speed, layers[i].fan_speed, layers[i + 1].fan_speed))
+        delta_sum += abs(layers[i].delta)
+    for i in range(index, len(layers) - 1):
+        layers[i].update_fan_speed()
+    if 255 * delta_sum < 0.05  * (1 + len(layers)):
+        break
+#END
+
+# Cost calculation
+#START
+variables["time_cost"][value] = total_time * variables["time_cost"][value] / 3600
+
+cost = variables["time_cost"][value]
+
+extrusion_multiplier = ((0.000_001) if bool(slicer_variables["use_volumetric_e"][value]) else (0.000_000_25 * math.pi * (slicer_variables["filament_diameter"][value] ** 2))) * slicer_variables["filament_density"][value] * slicer_variables["filament_cost"][value]
+
+for feature_type, feature in feature_types.items():
+    feature["Cost"] = feature["Length"] * feature["Cost_multiplier"] * extrusion_multiplier
+    cost += feature["Cost"]
+
+print(f"{cost=:.2f}")
+#END
+
+# Add post processing script variables to gcode as a config
+layer = []
+if slicer == "OS":
+    for line in layers[-1].layer:
+        match = re.search(r"^.*CONFIG_BLOCK_START$", line)
+        if match:
+            layer.append("; pps_config = begin\n")
+            layer.extend(pps_config)
+            layer.append("; pps_config = end\n\n")
+        layer.append(line)
+else:
+    for line in layers[-1].layer:
+        match = re.search(r"^.*_config = begin$", line)
+        if match:
+            layer.append("; pps_config = begin\n")
+            layer.extend(pps_config)
+            layer.append("; pps_config = end\n\n")
+        layer.append(line)
+layers[-1].layer = layer
+
+# Add side fan commands
+is_start_gcode_skipped = False
+
+for layer in layers:
+    if is_start_gcode_skipped:
+        #lines.append(f"SET_FAN_SPEED FAN=extruder_partfan SPEED={layer.fan_speed:.2f}\n")
+        fan = max(layer.fan_speed, variables["fan_printer_min_speed"][value]) * 2.55 if layer.fan_speed >= 0.75 * variables["fan_printer_min_speed"][value] else 0
+        lines.append(f"M106 P2 S{fan:.2f}\n")
+    is_start_gcode_skipped = True
+    lines.extend(layer.layer)
+
+print(f"Extruder partfan adjustments: {len(lines)} lines\n")
+
+
+# Write to file
+# Add cost per feature type in the beginning of the gcode
+with open(filename, "w") as file:
+    for i, line in enumerate(lines):
+        if i == 1:
+            file.write(f"; Cost calculated by post processing script: {cost:.2f}\n")
+            for feature in feature_types.keys():
+                if feature_types[feature]["Cost"] > 0:
+                    file.write(f"; {feature_types[feature]['Cost']:.2f} - {feature_types[feature][slicer]}\n")
+            file.write(f"; {variables['time_cost'][value]:.2f} - Time\n")
+        file.write(line)
+
+input("Press enter to exit: ")
