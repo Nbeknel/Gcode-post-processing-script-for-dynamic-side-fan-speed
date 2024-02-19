@@ -35,6 +35,7 @@ Instead of using the in slicer variable full_fan_speed_layer this script impleme
 - Added support for relative extrusion and volumetric.
 - Changed time estimation, introduced a new variable 'theta' and calculate time as 'theta' * pessimistic + (1 - 'theta') * optimistic, default value for 'theta' is 1/3.
 - Account for acceleration for retraction moves.
+- Disabling fan for the first few layers is now height dependant. Introduced a new variable `disable_fan_initial_height` which can be manually set, or is calculated from layer height. Its actual value will be the maximum of the two.
 
 ## v0.3 improvements
 - Added OrcaSlicer support.
